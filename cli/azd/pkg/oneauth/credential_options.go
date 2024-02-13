@@ -3,6 +3,23 @@
 
 package oneauth
 
+import "github.com/charmbracelet/bubbles/list"
+
+type Account struct {
+	AssociatedApps []string
+	DisplayName    string
+	ID             string
+	Username       string
+}
+
+func (Account) FilterValue() string { return "" }
+
+func (a Account) IsZero() bool {
+	return a.ID == "" && a.Username == "" && a.DisplayName == "" && len(a.AssociatedApps) == 0
+}
+
+var _ list.Item = (*Account)(nil)
+
 type CredentialOptions struct {
 	// HomeAccountID of a previously authenticated user the credential
 	// should attempt to authenticate from OneAuth's cache.
