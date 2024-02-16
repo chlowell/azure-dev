@@ -211,6 +211,22 @@ func (m *Manager) CredentialForCurrentUser(
 			}
 			return cloudShellCredential, nil
 		}
+		if oneauth.Supported && os.Getenv("IsDevBox") == "True" {
+			// Try signing in the active Windows account. If that fails for any reason, tell the user to run `azd auth login`.
+			if err := m.LoginWithOneAuth(ctx, options.TenantID, LoginScopes, true); err == nil {
+				if config, err := m.readAuthConfig(); err == nil {
+					if user, err := readUserProperties(config); err == nil && user.HomeAccountID != nil {
+						authority := cDefaultAuthority
+						if options.TenantID != "" {
+							authority = "https://login.microsoftonline.com/" + options.TenantID
+						}
+						return oneauth.NewCredential(authority, cAZD_CLIENT_ID, oneauth.CredentialOptions{
+							HomeAccountID: *user.HomeAccountID,
+						})
+					}
+				}
+			}
+		}
 		return nil, ErrNoCurrentUser
 	}
 
@@ -502,15 +518,23 @@ func (m *Manager) LoginInteractive(
 	return newAzdCredential(m.publicClient, &res.Account), nil
 }
 
-func (m *Manager) LoginWithOneAuth(ctx context.Context, tenantID string, scopes []string) error {
-	if len(scopes) == 0 {
-		scopes = LoginScopes
+func (m *Manager) LoginWithOneAuth(ctx context.Context, tenantID string, scopes []string, osAccountOnly bool) error {
+	var (
+		accountID string
+		err       error
+	)
+	if osAccountOnly {
+		accountID, err = oneauth.SignInSilently(cAZD_CLIENT_ID)
+	} else {
+		authority := cDefaultAuthority
+		if tenantID != "" {
+			authority = "https://login.microsoftonline.com/" + tenantID
+		}
+		if len(scopes) == 0 {
+			scopes = LoginScopes
+		}
+		accountID, err = oneauth.LogIn(authority, cAZD_CLIENT_ID, strings.Join(scopes, " "))
 	}
-	authority := cDefaultAuthority
-	if tenantID != "" {
-		authority = "https://login.microsoftonline.com/" + tenantID
-	}
-	accountID, err := oneauth.LogIn(authority, cAZD_CLIENT_ID, strings.Join(scopes, " "))
 	if err == nil {
 		err = m.saveUserProperties(&userProperties{
 			FromOneAuth:   true,

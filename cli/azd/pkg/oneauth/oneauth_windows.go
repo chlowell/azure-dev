@@ -95,6 +95,7 @@ var (
 	listAccounts *windows.Proc
 	logout       *windows.Proc
 	shutdown     *windows.Proc
+	signInSilent *windows.Proc
 	startup      *windows.Proc
 )
 
@@ -185,6 +186,25 @@ func Logout(clientID string) error {
 		logout.Call()
 	}
 	return err
+}
+
+// TODO: is an error ever useful? In any error case we should fall back to interactive auth.
+func SignInSilently(clientID string) (string, error) {
+	err := start(clientID)
+	if err != nil {
+		return "", err
+	}
+	p, _, _ := signInSilent.Call()
+	if p == 0 {
+		return "", fmt.Errorf("silent sign-in failed")
+	}
+	defer freeAR.Call(p)
+	wrapped := (*C.WrappedAuthResult)(unsafe.Pointer(p))
+	if wrapped.errorDescription != nil {
+		return "", fmt.Errorf(C.GoString(wrapped.errorDescription))
+	}
+	accountID := C.GoString(wrapped.accountID)
+	return accountID, err
 }
 
 func start(clientID string) error {
@@ -305,6 +325,9 @@ func loadDLL() error {
 	}
 	if err == nil {
 		shutdown, err = bridge.FindProc("Shutdown")
+	}
+	if err == nil {
+		signInSilent, err = bridge.FindProc("SignInSilently")
 	}
 	if err == nil {
 		startup, err = bridge.FindProc("Startup")

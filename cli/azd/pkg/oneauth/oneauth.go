@@ -28,6 +28,10 @@ func Logout(clientID string) error {
 	return errNotSupported
 }
 
+func SignInSilently(clientID string) (string, error) {
+	return "", errNotSupported
+}
+
 func NewCredential(authority, clientID string, opts CredentialOptions) (azcore.TokenCredential, error) {
 	return nil, errNotSupported
 }
